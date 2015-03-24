@@ -16,5 +16,5 @@ $ sudo pip install requests gevent
 安装所需的库
 ```bash
 $ sudo apt-get install redis-server
-$ sudo pip install requests gevent redis
+$ sudo pip install requests gevent redis tornado
 ```
