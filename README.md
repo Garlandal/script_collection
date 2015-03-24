@@ -6,5 +6,5 @@
 
 安装所需的库
 ```bash
-$ sudo pip install requests threadpool
+$ sudo pip install requests gevent
 ```

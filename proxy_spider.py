@@ -6,9 +6,12 @@ import requests
 import urllib2
 import datetime
 import re
-import threadpool
 import smtplib
 import time
+import gevent
+import gevent.monkey
+
+gevent.monkey.patch_socket()
 
 from email import encoders
 from email.header import Header
@@ -21,6 +24,7 @@ class Spider():
     """Get proxy and confirm it"""
 
     def __init__(self):
+        self.confirm_url = 'http://www.baidu.com'
         self.from_addr = ''
         self.password = ''
         self.to_addr = ''
@@ -34,7 +38,7 @@ class Spider():
             "http": str(proxy),
         }
         try:
-            resp = requests.get('http://www.baidu.com', proxies=proxies, timeout=2)
+            resp = requests.get(self.confirm_url, proxies=proxies, timeout=2)
         except Exception, e:
             print '\033[1;35mConfirming: {proxy}\t False\033[0m'.format(proxy=proxy)
         else:
@@ -46,11 +50,9 @@ class Spider():
                 print '\033[1;37mConfirming: {proxy} \t ERROR \t{code}\033[0m'.format(proxy=proxy,
                                                                                       code=resp.status_code)
 
-    def confirm_proxy(self, proxy):
-        pool = threadpool.ThreadPool(10)
-        requ = threadpool.makeRequests(self.check, proxy)
-        [pool.putRequest(req) for req in requ]
-        pool.wait()
+    def confirm_proxy(self, proxies):
+        threads = [gevent.spawn(self.check, i) for i in proxies]
+        gevent.joinall(threads)
 
     def _format_addr(self, s):
         name, addr = parseaddr(s)
@@ -119,6 +121,6 @@ class PaChong(Spider):
 
 
 if __name__ == "__main__":
-    mesk = Mesk()
-    iplists = mesk.get_proxy()
-    mesk.confirm_proxy(iplists)
+    for proxy_site in [Mesk(), PaChong()]:
+        iplists = proxy_site.get_proxy()
+        proxy_site.confirm_proxy(iplists)
