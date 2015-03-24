@@ -19,6 +19,8 @@ import redis
 import gevent
 import gevent.monkey
 
+from gevent.pool import Group
+
 gevent.monkey.patch_socket()
 
 
@@ -131,9 +133,24 @@ class PaChong(Spider):
         print 'There are\033[1;33m {total} \033[0mproxies'.format(total=len(ip_ports))
         return ip_ports
 
-
-if __name__ == "__main__":
+def main():
     for proxy_site in [Mesk(), PaChong()]:
         iplists = proxy_site.get_proxy()
         proxy_site.confirm_proxy(proxy_site.check, iplists)
-    Spider().redis_clean()
+    Spider().redis_clean()	
+
+
+def server():
+	tornado.options.parse_command_line()
+	app = tornado.web.Application(handlers=[(r"/", IndexHandler)])
+	http_server = tornado.httpserver.HTTPServer(app)
+	http_server.listen(options.port)
+	tornado.ioloop.IOLoop.instance().start()
+
+if __name__ == "__main__":
+	g1 = gevent.spawn(main)
+	g2 = gevent.spawn(server)
+	group = Group()
+	group.add(g1)
+	group.add(g2)
+	group.join()
