@@ -7,13 +7,15 @@ import tornado.options
 import tornado.web
 
 from tornado.options import define, options
-define("port", default=8000, help="run on the 8000 port", type=int)
+define("port", default=8888, help="run on the 8000 port", type=int)
 
 import requests
 import urllib2
+import signal
+import sys
 import datetime
 import re
-import threadpool
+import threading
 import time
 import redis
 import gevent
@@ -29,12 +31,6 @@ class IndexHandler(tornado.web.RequestHandler):
 		greeting = self.get_argument('greeting', 'hello')
 		self.write(greeting + ', user~')
 
-# if __name__ == '__main__':
-# 	tornado.options.parse_command_line()
-# 	app = tornado.web.Application(handlers=[(r"/", IndexHandler)])
-# 	http_server = tornado.httpserver.HTTPServer(app)
-# 	http_server.listen(options.port)
-# 	tornado.ioloop.IOLoop.instance().start()
 
 def make_proxy(func):
 	def wrapper(self, proxy):
@@ -133,24 +129,40 @@ class PaChong(Spider):
         print 'There are\033[1;33m {total} \033[0mproxies'.format(total=len(ip_ports))
         return ip_ports
 
-def main():
-    for proxy_site in [Mesk(), PaChong()]:
-        iplists = proxy_site.get_proxy()
-        proxy_site.confirm_proxy(proxy_site.check, iplists)
-    Spider().redis_clean()	
+def main_thread(threadid):
+	if threadid == 0:
+		while True:
+			for proxy_site in [Mesk(), PaChong()]:
+				iplists = proxy_site.get_proxy()
+				proxy_site.confirm_proxy(proxy_site.check, iplists)
+			time.sleep(86400)
+			Spider.redis_clean()
+			time.sleep(86400)
+	elif threadid == 1:
+		tornado.options.parse_command_line()
+		app = tornado.web.Application(handlers=[(r"/", IndexHandler)])
+		http_server = tornado.httpserver.HTTPServer(app)
+		http_server.listen(options.port)
+		tornado.ioloop.IOLoop.instance().start()
+	elif threadid == 2:
+		def signal_handler(signal, frame):
+			sys.exit(0)
+		signal.signal(signal.SIGINT, signal_handler)
+		signal.pause()
 
+class myThread(threading.Thread):
+	def __init__(self, threadid):
+		threading.Thread.__init__(self)
+		self.threadID = threadid
 
-def server():
-	tornado.options.parse_command_line()
-	app = tornado.web.Application(handlers=[(r"/", IndexHandler)])
-	http_server = tornado.httpserver.HTTPServer(app)
-	http_server.listen(options.port)
-	tornado.ioloop.IOLoop.instance().start()
+	def run(self):
+		main_thread(self.threadID)
+
 
 if __name__ == "__main__":
-	g1 = gevent.spawn(main)
-	g2 = gevent.spawn(server)
-	group = Group()
-	group.add(g1)
-	group.add(g2)
-	group.join()
+	thread1 = myThread(0)
+	thread2 = myThread(1)
+	thread3 = myThread(2)
+	thread1.start()
+	thread2.start()
+	thread3.start()
